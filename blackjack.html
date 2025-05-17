@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Blackjack Game with Animations</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #2e7d32;
+      color: white;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    .hand {
+      display: flex;
+      justify-content: center;
+      margin: 20px;
+      flex-wrap: wrap;
+      min-height: 160px;
+    }
+    .hand img {
+      width: 100px;
+      margin: 5px;
+      border-radius: 10px;
+      box-shadow: 2px 2px 10px #00000088;
+      opacity: 0;
+      transform: translateY(-50px);
+      animation-fill-mode: forwards;
+    }
+    .slide-in {
+      animation: slideIn 0.5s ease forwards;
+    }
+    @keyframes slideIn {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    #controls button {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin: 10px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background-color: #1b5e20;
+      color: white;
+      transition: background-color 0.3s ease;
+    }
+    #controls button:hover {
+      background-color: #388e3c;
+    }
+    #message {
+      font-size: 24px;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Blackjack</h1>
+
+  <h2>Dealer</h2>
+  <div class="hand" id="dealer-hand"></div>
+
+  <h2>Player</h2>
+  <div class="hand" id="player-hand"></div>
+
+  <div id="controls">
+    <button onclick="hit()">Hit</button>
+    <button onclick="stand()">Stand</button>
+    <button onclick="startGame()">Restart</button>
+  </div>
+
+  <div id="message"></div>
+
+  <script>
+    const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
+    const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king', 'ace'];
+    let deck = [], playerHand = [], dealerHand = [], gameOver = false;
+
+    function createDeck() {
+      const newDeck = [];
+      for (let suit of suits) {
+        for (let value of values) {
+          newDeck.push({ value, suit });
+        }
+      }
+      return shuffle(newDeck);
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function cardValue(card) {
+      if (['jack', 'queen', 'king'].includes(card.value)) return 10;
+      if (card.value === 'ace') return 11;
+      return parseInt(card.value);
+    }
+
+    function handValue(hand) {
+      let total = 0;
+      let aces = 0;
+      for (let card of hand) {
+        total += cardValue(card);
+        if (card.value === 'ace') aces++;
+      }
+      while (total > 21 && aces > 0) {
+        total -= 10;
+        aces--;
+      }
+      return total;
+    }
+
+    function drawCard() {
+      return deck.pop();
+    }
+
+    // Display hand with animation on new cards
+    function displayHand(hand, elementId, hideFirstCard = false) {
+      const handDiv = document.getElementById(elementId);
+      handDiv.innerHTML = '';
+
+      hand.forEach((card, index) => {
+        const img = document.createElement('img');
+        if (hideFirstCard && index === 0) {
+          img.src = 'cards/back.png';
+          img.alt = 'Card Back';
+        } else {
+          img.src = `cards/${card.value}_of_${card.suit}.png`;
+          img.alt = `${card.value} of ${card.suit}`;
+        }
+
+        // Add slide-in animation
+        img.classList.add('slide-in');
+
+        handDiv.appendChild(img);
+      });
+    }
+
+    // Animate only newly added cards
+    // We'll keep track of how many cards were previously displayed per hand
+    const previousCounts = { 'player-hand': 0, 'dealer-hand': 0 };
+
+    function displayHandWithAnimation(hand, elementId, hideFirstCard = false) {
+      const handDiv = document.getElementById(elementId);
+      const oldCount = previousCounts[elementId] || 0;
+      handDiv.innerHTML = '';
+
+      hand.forEach((card, index) => {
+        const img = document.createElement('img');
+        if (hideFirstCard && index === 0) {
+          img.src = 'cards/back.png';
+          img.alt = 'Card Back';
+        } else {
+          img.src = `cards/${card.value}_of_${card.suit}.png`;
+          img.alt = `${card.value} of ${card.suit}`;
+        }
+        // Add slide-in animation only for new cards
+        if (index >= oldCount) {
+          img.classList.add('slide-in');
+        } else {
+          // Already displayed cards show immediately
+          img.style.opacity = '1';
+          img.style.transform = 'none';
+        }
+
+        handDiv.appendChild(img);
+      });
+
+      previousCounts[elementId] = hand.length;
+    }
+
+    function hit() {
+      if (gameOver) return;
+      playerHand.push(drawCard());
+      displayHandWithAnimation(playerHand, 'player-hand');
+      if (handValue(playerHand) > 21) {
+        endGame('You busted! Dealer wins.');
+      }
+    }
+
+    function stand() {
+      if (gameOver) return;
+      displayHand(dealerHand, 'dealer-hand'); // reveal dealer cards
+
+      // Dealer hits until 17 or more
+      const dealerTurn = () => {
+        if (handValue(dealerHand) < 17) {
+          dealerHand.push(drawCard());
+          displayHandWithAnimation(dealerHand, 'dealer-hand');
+          setTimeout(dealerTurn, 700); // delay for animation
+        } else {
+          const playerTotal = handValue(playerHand);
+          const dealerTotal = handValue(dealerHand);
+          if (dealerTotal > 21 || playerTotal > dealerTotal) {
+            endGame('You win!');
+          } else if (dealerTotal === playerTotal) {
+            endGame("It's a tie!");
+          } else {
+            endGame('Dealer wins!');
+          }
+        }
+      };
+      dealerTurn();
+    }
+
+    function endGame(message) {
+      gameOver = true;
+      document.getElementById('message').textContent = message;
+      displayHand(dealerHand, 'dealer-hand'); // show all dealer cards
+    }
+
+    function startGame() {
+      deck = createDeck();
+      playerHand = [drawCard(), drawCard()];
+      dealerHand = [drawCard(), drawCard()];
+      gameOver = false;
+      previousCounts['player-hand'] = 0;
+      previousCounts['dealer-hand'] = 0;
+      document.getElementById('message').textContent = '';
+      displayHandWithAnimation(playerHand, 'player-hand');
+      displayHandWithAnimation(dealerHand, 'dealer-hand', true);
+    }
+
+    startGame();
+  </script>
+</body>
+</html>
